@@ -13,43 +13,40 @@ pol <- read.csv("data/321/polity2.csv")
 
 #### JOIN DATA ####
 
+max(gap$year, na.rm=T)
+max(pol$year, na.rm=T)
+#let's set gap and pol to 2007
+gap <- gap[gap$year==2007,]
+pol <- pol[pol$year==2007,]
+
+#let's set mov to less than 2007 as well
+class(mov$year)
+mov$year <- as.numeric(mov$year)
+mov <- mov[mov$year<=2007,]
+
 #Subset imdb to only movies
 unique(mov$type)
 mov <- mov[mov$type=="movie",]
 #remove shorts - some are just one minute!
 mov <- mov[!grepl("Short", mov$genre), ]
-#group by year and country to match with gapminder and polity
-mov_sum <- mov %>% 
-  group_by(country, year) %>% 
-  summarize(number_of_movies = n())
-#let's do a dataset just by country too
-mov_countries <- mov %>% 
+#let's do a dataset just by country to match with gapminder and polity
+mov <- mov %>% 
   group_by(country) %>% 
   summarize(number_of_movies = n())
-#and let's drop observations with commas
-mov_countries <- mov_countries[!grepl(",", mov_countries$country), ]
-
 
 #clean country names
-sort(unique(mov_sum$country))
+sort(unique(mov$country))
 sort(unique(gap$country))
 sort(unique(pol$country))
-mov_sum$country[mov_sum$country=="USA"] <- "United States"
-mov_sum$country[mov_sum$country=="UK"] <- "United Kingdom"
+mov$country[mov$country=="USA"] <- "United States"
+mov$country[mov$country=="UK"] <- "United Kingdom"
 #any others?
 
 #now let's join
-df <- left_join(gap, pol, by=c("country", "year"))
-# df <- left_join(df, mov_sum, by=c("country", "year")) #got an error!
-class(df$year)
-class(mov_sum$year)
-mov_sum$year <- as.numeric(mov_sum$year)
-df <- left_join(df, mov_sum, by=c("country", "year"))
+df <- left_join(gap, pol, by="country")
+df <- left_join(df, mov, by="country")
 
-#we want to set NAs to zero in this case only because we know we had a pretty full dataset of movies!
-df$number_of_movies[is.na(df$number_of_movies)] <- 0
-
-rm(mov, pol, gap, mov_sum) #now let's remove objects so they don't take up space!
+rm(mov, pol, gap) #now let's remove objects so they don't take up space!
 gc() #still need to clear RAM
 
 #### PLOTS ####
