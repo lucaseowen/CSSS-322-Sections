@@ -3,6 +3,18 @@ library(dplyr)
 library(ggplot2)
 library(readr)
 
+#### SET PLOT THEME ####
+
+my_theme <- theme_minimal() +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+theme_set(my_theme)
+
+
 #### LOAD DATA ####
 
 mov <- read_csv(unz("data/322/imdb/movies_initial.csv.zip", "movies_initial.csv"))
@@ -46,9 +58,44 @@ mov$country[mov$country=="UK"] <- "United Kingdom"
 df <- left_join(gap, pol, by="country")
 df <- left_join(df, mov, by="country")
 
-rm(mov, pol, gap) #now let's remove objects so they don't take up space!
+rm(pol, gap) #now let's remove objects so they don't take up space!
 gc() #still need to clear RAM
+
+movies <- read_csv(unz("data/322/imdb/movies_initial.csv.zip", "movies_initial.csv"))
 
 #### PLOTS ####
 
+ggplot(data=movies, aes(x=imdbRating))+
+  geom_histogram()+
+  xlab("IMDB Rating")
+
+t <- as.data.frame(table(movies$imdbRating))
+mode <- t$Var1[t$Freq==max(t$Freq, na.rm=T)]
+mode <- 7.2
 #let's make some nice plots!
+rating_mean <- mean(movies$imdbRating, na.rm=T)
+ggplot(data=movies, aes(x=imdbRating))+
+  
+  #create geometric layers
+  geom_density(fill="lightgrey", alpha=0.3, linewidth=1.1)+
+  geom_vline(xintercept=mode, linetype=2, color="purple")+
+  geom_vline(xintercept=rating_mean, linetype=2, color="darkorange")+
+  annotate("text", x = 7.2, y = 0.05, label = "Mode", color = "purple", angle = 90, vjust = -0.5)+
+  annotate("text", x = rating_mean, y = 0.05, label = "Mean", color = "darkorange", angle = 90, vjust = -0.5)+
+  
+  #edit general plot visuals
+  xlab("IMDB Rating")+
+  ylab("Proportion of movies")+
+  scale_x_continuous(limits=c(1,10), breaks=c(seq(from=1, to=10, by=1), 7.2, round(rating_mean, 1)))+
+  labs(caption="The distribution of imdb ratings for all 46,014 movies in our data. The lowest score a movie can get is 1, and the highest is 10.")+
+  theme_minimal()+
+  theme(
+    panel.grid.minor.x = element_blank(),   # remove minor vertical grid lines
+    panel.grid.minor.y = element_blank(),   # remove minor vertical grid lines
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+    )
+ggsave("imdb_rating_density.pdf", width=7, height=5)
+
+
+
