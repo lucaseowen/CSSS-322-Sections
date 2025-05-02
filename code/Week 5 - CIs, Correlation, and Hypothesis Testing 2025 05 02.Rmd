@@ -1,0 +1,187 @@
+---
+title: "Confidence Intervals, Correlation, and Hypothesis Testing"
+author: "Lucas Owen"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(janitor)
+library(estimatr)
+library(emmeans)
+library(stargazer)
+
+### SET PLOT THEME ###
+
+my_theme <- theme_minimal() +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+theme_set(my_theme)
+```
+
+What determines the size of a country's movie industry? There are many possible theories we might come up with to answer this question. In this lab, we'll be testing whether regime type influences movie industry size. The logic behind this is that we expect democracies to allow greater freedom of speech and therefore permit greater artistic expression, whereas dictatorships should be more likely to censor and otherwise discourage artistic expression.
+
+# Let's load our data
+
+```{r}
+
+# load data
+df <- read.csv("data/322/gapminder_polity_movies.csv")
+head(df)
+```
+
+
+# Create and clean variables of interest
+
+In order to test whether regime type influences movie industry size, we need to think carefully about how we want to measure regime type. A common method is the polity score, which measures a regime on a scale from -10 to 10, where lower values are more authoritarian and higher values are more democratic. Here is some info on exactly what they consider when scoring a country: "The Polity scheme consists of six component measures that record key qualities of executive recruitment, constraints on executive authority and political competition. It also records changes in the institutionalized qualities of governing authority."
+
+Scoring countries in exactly the "correct" spot is hard, though! In terms of theory, regimes are generally categorized as authoritarian, hybrid, or democratic. Maybe we're more trusting of this overall categorization than a specific score, in which case we want to reduce variation we think may not be meaningful. (What determines whether a country gets scored as -7 compared to 9 is probably more important than what determines whether they get scored as -7 versus -6.) So let's bucket countries into regime types based on polity.
+
+```{r}
+
+df <- df %>%
+  mutate(
+    regime_type = case_when(
+      polity >= 6 ~ "Democracy",
+      polity >= 1 & polity <= 5 ~ "Hybrid",
+      polity <= 0 ~ "Dictatorship",
+      TRUE ~ NA_character_
+    ),
+    regime_type = factor(regime_type, levels = c("Dictatorship", "Hybrid", "Democracy"))
+  )
+
+```
+
+# Missingness
+
+Now, number of movies is missing lots of observations! Let's see if this is in anyway systematic - is missingness correlated with regime type? To test this, we need to use a Chi-squared test. Chi-squared tests are used to test if two discrete variables are independent. Remember, all hypothesis tests are essentially the same. The names just change based on the distribution of the statistic! (Z-test, t-test, chi-squared test).
+
+```{r}
+# Step 1: Create an indicator for missing number_of_movies
+df <- df %>%
+  mutate(movies_missing = if_else(is.na(number_of_movies), "Missing", "Not Missing"))
+
+# Step 2: Drop rows where regime_type is NA
+df_missing_test <- df %>%
+  filter(!is.na(regime_type))
+
+# Step 3: Contingency table and chi-squared test
+table_missing <- table(df_missing_test$movies_missing, df_missing_test$regime_type)
+table_missing
+
+chisq.test(table_missing)
+```
+
+In this case, the p-value is the probability of seeing a test statistic this extreme if there were no relationship between missingness and regime type. Since p < 0.05, we reject the null hypothesis of independence. This means that the pattern of missing data in number_of_movies is not random with respect to regime type! We therefore need to be careful about interpreting any results from this data, particularly with respect to external validity (it's not a random sample!)
+
+#Descriptive statistics and visualizations
+
+While we've established that the sample is not random, we can still get meaningful information from this data. Let's explore our variables of interest.
+
+```{r}
+#distribution of regime type
+df_clean <- df[!is.na(df$regime_type),] #we have to remove NAs for regime type because otherwise ggplot will plot them
+ggplot(df_clean, aes(x = regime_type)) +
+  geom_bar(fill = "skyblue", color = "black") +
+  labs(title = "Distribution of Regime Types", x = "Regime Type", y = "Number of Countries")
+
+ggplot(df_clean, aes(x = number_of_movies)) +
+  geom_histogram(bins = 30, fill = "skyblue", color = "black") +
+  scale_x_log10() +
+  labs(title = "Distribution of Number of Movies Produced", x = "Number of Movies", y = "Number of Countries")
+
+ggplot(df_clean, aes(x = regime_type, y = number_of_movies)) +
+  geom_boxplot(fill = "skyblue") +
+  scale_y_log10()+
+  labs(title = "Movie Production by Regime Type", x = "Regime Type", y = "Number of Movies")
+
+stargazer(df_clean %>% select(number_of_movies, gdpPercap, lifeExp), 
+          type = "text", 
+          title = "Descriptive Statistics",
+          digits = 1,
+          summary.stat = c("mean", "sd", "min", "max", "n"))
+
+#let's calculate the 95% Confidence interval for the mean of number_of_movies
+m <- mean(df$number_of_movies, na.rm=T)
+sd <- sd(df$number_of_movies, na.rm=T)
+n <- nrow(df[!is.na(df$number_of_movies),])
+#these don't match stargazer. why?
+se <- sd / sqrt(n)
+ci_high <- m + (1.96*se)
+ci_low <- m - (1.96*se) #interesting...
+```
+
+#Checking the relationship
+
+Now let's check relationships between our variables.
+
+If we have two continuous variables, we can check the correlation coefficient. The correlation coefficient essentially tells us how often and how strongly X and Y move together in the same direction, on a standardized scale.
+
+```{r}
+cor(df_clean$gdpPercap, df_clean$number_of_movies, method = "pearson", use = "pairwise.complete.obs")
+```
+
+Pearson’s correlation coefficient specifically captures linear association. If your variables have a non-linear relationship, outliers, or are severely skewed, the correlation coefficient may understate the strength of the association or be distorted by outliers. Remember last time we logged them and it made the relationship appear much more linear on a plot. Let's try that again.
+
+```{r}
+df_clean$gdpPercap_ln <- log(df_clean$gdpPercap)
+df_clean$number_of_movies_ln <- log(df_clean$number_of_movies)
+cor(df_clean$gdpPercap_ln, df_clean$number_of_movies_ln, method = "pearson", use = "pairwise.complete.obs")
+```
+
+But that wasn't our original research question. To test our original question, we have a couple of options.
+
+First, a t-test can check for a statistically significant difference in means between two groups.
+```{r}
+#original scale
+t_test_results1 <- t.test(number_of_movies ~ regime_type, data = df_clean[df_clean$regime_type %in% c("Democracy", "Dictatorship"),])
+t_test_results1
+
+#logged
+t_test_results2 <- t.test(number_of_movies_ln ~ regime_type, data = df_clean[df_clean$regime_type %in% c("Democracy", "Dictatorship"),])
+t_test_results2
+```
+
+But we have three groups instead of two! So we can use ANOVA or linear regression. ANOVA (Analysis of Variance) is a classical statistical method used to test whether the means of three or more groups are significantly different from each other.
+
+Instead of comparing means pairwise (like multiple t-tests, which inflate Type I error), ANOVA tests a single null hypothesis:
+
+    H₀: All group means are equal.
+    H₁: At least one group mean differs.
+
+```{r}
+#original scale
+anova_result1 <- aov(number_of_movies ~ regime_type, data = df_clean)
+summary(anova_result1)
+
+#logged
+anova_result2 <- aov(number_of_movies_ln ~ regime_type, data = df_clean)
+summary(anova_result2)
+```
+
+While ANOVA is mathematically fine, now many researchers just use linear models. Linear models are a bit more flexible, easier to interpret, and easier to extend by adding covariates.
+
+```{r}
+#original scale
+lm1 <- lm(number_of_movies ~ regime_type, data = df_clean)
+summary(lm1)
+
+#logged
+lm2 <- lm(number_of_movies_ln ~ regime_type, data = df_clean)
+summary(lm2)
+
+exp(lm2$coefficients[3])
+```
+
+The coefficient of 2.19 on Democracy means democracies produce approximately 9× more movies than dictatorships, on average.
+
+But this does not mean we should always log our variables! And you should not look at statistical significance to determine if logging is the correct decision. You should consider logging if the outcome is bounded by zero, you're concerned with proportional effects, and the residuals of the unlogged model are highly skewed or heteroskedastic.
+
+Here, the log-transformed model fits the data better (R2), but it also makes results harder to interpret. We have to be careful when communicating differences in means!

@@ -97,5 +97,26 @@ ggplot(data=movies, aes(x=imdbRating))+
     )
 ggsave("imdb_rating_density.pdf", width=7, height=5)
 
+#### PIE CHART ####
+
+library(ggplot2)
+library(dplyr)
+
+# Example: count movies by country
+movies_pie <- movies %>%
+  count(type) %>%
+  arrange(desc(n)) %>%
+  mutate(prop = n / sum(n),
+         label = paste0(type, " (", round(prop * 100, 1), "%)"))
+
+# Create the pie chart
+ggplot(movies_pie, aes(x = "", y = prop, fill = type)) +
+  geom_bar(stat = "identity", width = 1, color = "white") +
+  coord_polar(theta = "y") +
+  labs(x = NULL, y = NULL, fill = "Country") +
+  theme_void() +  # removes background and axes
+  theme(legend.position = "right")
+
+
 
 
