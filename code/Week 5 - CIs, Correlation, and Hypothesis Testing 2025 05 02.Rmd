@@ -1,8 +1,11 @@
 ---
 title: "Confidence Intervals, Correlation, and Hypothesis Testing"
 author: "Lucas Owen"
-output: pdf_document
-editor_options: 
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
   chunk_output_type: console
 ---
 
@@ -68,12 +71,8 @@ Now, number of movies is missing lots of observations! Let's see if this is in a
 df <- df %>%
   mutate(movies_missing = if_else(is.na(number_of_movies), "Missing", "Not Missing"))
 
-# Step 2: Drop rows where regime_type is NA
-df_missing_test <- df %>%
-  filter(!is.na(regime_type))
-
 # Step 3: Contingency table and chi-squared test
-table_missing <- table(df_missing_test$movies_missing, df_missing_test$regime_type)
+table_missing <- table(df$movies_missing, df$regime_type)
 table_missing
 
 chisq.test(table_missing)
@@ -131,6 +130,14 @@ cor(df_clean$gdpPercap, df_clean$number_of_movies, method = "pearson", use = "pa
 Pearson’s correlation coefficient specifically captures linear association. If your variables have a non-linear relationship, outliers, or are severely skewed, the correlation coefficient may understate the strength of the association or be distorted by outliers. Remember last time we logged them and it made the relationship appear much more linear on a plot. Let's try that again.
 
 ```{r}
+ggplot(data=df, aes(x=gdpPercap, y=number_of_movies))+
+  geom_point()
+
+ggplot(data=df, aes(x=gdpPercap, y=number_of_movies))+
+  geom_point()+
+  scale_x_log10()+
+  scale_y_log10()
+
 df_clean$gdpPercap_ln <- log(df_clean$gdpPercap)
 df_clean$number_of_movies_ln <- log(df_clean$number_of_movies)
 cor(df_clean$gdpPercap_ln, df_clean$number_of_movies_ln, method = "pearson", use = "pairwise.complete.obs")
@@ -143,6 +150,8 @@ First, a t-test can check for a statistically significant difference in means be
 #original scale
 t_test_results1 <- t.test(number_of_movies ~ regime_type, data = df_clean[df_clean$regime_type %in% c("Democracy", "Dictatorship"),])
 t_test_results1
+
+summary(lm(number_of_movies ~ regime_type, data=df_clean))
 
 #logged
 t_test_results2 <- t.test(number_of_movies_ln ~ regime_type, data = df_clean[df_clean$regime_type %in% c("Democracy", "Dictatorship"),])
