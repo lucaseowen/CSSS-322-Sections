@@ -67,6 +67,12 @@ df$native.country <- factor(df$native.country, levels = c("United-States", setdi
 
 #age v. income plot
 
+ggplot(data = df, aes(x = age, y = income_binary)) +
+  geom_point(alpha = 0.2) +
+  geom_smooth(method="lm")
+  ylab("Income (Less than or Greater than 50,000 USD)") +
+  xlab("Age")
+
 #skipping the typical geom_smooth() because I want to show something...
 
 # w/ fitted regression line
@@ -92,6 +98,11 @@ ggplot(data = df, aes(x = age, y = income_binary)) +
 #### LINEAR REGRESSION ####
 
 #what variables should we include?
+lm1 <- lm(income_binary ~ age + workclass + education + marital.status + occupation + race + sex + hours.per.week + native.country, data=df)
+summary(lm1)
+
+lm2 <- lm(income_binary ~ sex, data=df)
+summary(lm2)
 
 #what can we consider to be causal effects?
 
@@ -119,7 +130,7 @@ hypothetical <- data.frame(
 )
 
 #predictions w/ confidence intervals - some hypothetical cases
-preds <- predict(lm1, newdata = hypothetical, interval = "confidence")
+preds <- predict(lm1, newdata = hypothetical, interval = "prediction", type="response")
 hypothetical_preds <- cbind(hypothetical, preds)
 
 # Add labels for plotting
@@ -136,5 +147,18 @@ ggplot(hypothetical_preds, aes(x = label, y = fit)) +
 #how should we interpret the predicted outcome here?
 
 #potential concerns about this model?
+
+
+### HOW WELL DOES lm1 FIT THE DATA?
+#does it make accurate predictions?
+model_data <- model.frame(lm1)
+model_data$preds <- predict(lm1, newdata = model_data, type = "response")
+# Create predicted class variable based on 50% threshold
+model_data$predicted_value <- ifelse(model_data$preds >= 0.5, 1, 0)
+# Calculate accuracy
+accuracy <- mean(model_data$predicted_value == model_data$income_binary)
+# Print accuracy as a percentage
+accuracy_percent <- round(accuracy * 100, 2)
+cat("Prediction accuracy:", accuracy_percent, "%\n")
 
 
