@@ -119,11 +119,22 @@ logit1 <- glm(income_binary ~ age, data = df, family = "binomial")
 logit2 <- glm(income_binary ~ age + sex, data = df, family = "binomial")
 logit3 <- glm(income_binary ~ age * sex, data = df, family = "binomial")
 
-stargazer(lm1, lm2, lm3, type="text")
+stargazer(logit1, logit2, logit3, type="text")
 
 #we have to be very careful interpreting these coefficients!
 exp(logit3$coefficients[3])
 # Holding other variables constant, the odds of earning more than $50k for females are about 53% of the odds for males
+
+#one alternative is to calculate marginal effects
+library(margins)
+margins(logit3)
+
+# Marginal effect of age for men (sexFemale = 0)
+margins(logit3, variables = "age", at = list(sex = "Male"))
+
+# Marginal effect of age for women (sexFemale = 1)
+margins(logit3, variables = "age", at = list(sex = "Female"))
+
 
 #much easier to just calculate hypotheticals
 
@@ -146,8 +157,32 @@ ggplot(hypothetical_preds, aes(x = age, y = preds, group=sex)) +
   ylab("Predicted Probability of Income > 50k") +
   xlab("Age") +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 15, hjust = 1))+
+  theme(axis.text.x = element_text(hjust = 1))+
   labs(color = "Sex", linetype="Sex")
+
+#### HYPOTHETICALS - RACE ####
+
+logit3 <- glm(income_binary ~ age * race, data = df, family = "binomial")
+
+# Updated hypothetical individuals
+hypothetical <- expand.grid(
+  age = min(df$age, na.rm=T):max(df$age, na.rm=T),
+  race = unique(df$race)
+)
+
+#predictions w/ confidence intervals - some hypothetical cases
+preds <- predict(logit3, newdata = hypothetical, type="response") #base R can't do confidence intervals for this! Requires simulation which is complicated
+hypothetical_preds <- cbind(hypothetical, preds)
+
+ggplot(hypothetical_preds, aes(x = age, y = preds, group=race)) +
+  # geom_pointrange(aes(ymin = lwr, ymax = upr), size = 0.4, color = "black") +
+  geom_line(aes(color=race, linetype=race))+
+  ylim(-0.1, 1) +
+  ylab("Predicted Probability of Income > 50k") +
+  xlab("Age") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(hjust = 1))+
+  labs(color = "Race", linetype="Race")
 
 #### COMPARING TO WHAT WE DID LAST WEEK ####
 
