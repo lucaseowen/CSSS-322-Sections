@@ -1,0 +1,256 @@
+---
+title: "Difference-in-Differences"
+author: "Lucas Owen"
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = FALSE, message = FALSE)
+library(questionr) # for NA check
+library(tidyverse) # for dplyr and ggplot
+library(stargazer)
+library(estimatr)
+
+### SET PLOT THEME ###
+
+my_theme <- theme_minimal() +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+theme_set(my_theme)
+```
+
+# The data
+
+This data was collected to evaluate the National Supported Work (NSW) Demonstration, a randomized employment program studied by LaLonde (1986). The NSW program was designed to help disadvantaged individuals—such as welfare recipients, high school dropouts, ex-offenders, and ex-drug addicts transition into the labor market. Participants were randomly assigned to either a treatment group, which received program services, or a control group, which did not. This random assignment helped ensure that differences in outcomes between groups could be attributed to the program itself rather than pre-existing characteristics.
+
+Those in the treatment group were guaranteed 9 to 18 months of subsidized employment, worked in small crews, and received counseling and performance-based wage increases. Job placements varied by site and included roles in construction, service, and clerical work. Implemented in ten U.S. cities during the mid-1970s, the NSW program aimed to provide structured work experience and a pathway into regular employment.
+
+The paper in question:
+*Lalonde, R. (1986) Evaluating the Econometric Evaluations of Training Programs, American Economic Review, 76, 604-620.*
+
+| Variable  | Description                                      |
+|-----------|--------------------------------------------------|
+| id        | Matched pair id, 1, 1, 2, 2, ..., 185, 185.      |
+| z         | z=1 for treated, z=0 for control                 |
+| age       | Age in years                                     |
+| edu       | Education in years                               |
+| black     | 1=black, 0=other                                 |
+| hisp      | 1=Hispanic, 0=other                              |
+| married   | 1=married, 0=other                               |
+| nodegree  | 1=no High School degree, 0=other                 |
+| re74      | Earnings in 1974, a covariate                    |
+| re75      | Earnings in 1975, a covariate                    |
+| re78      | Earnings in 1978, an outcome                     |
+
+# 1. Descriptive statistics
+
+First, let's load the data and make sure it is clean. Let's also assess the balance between treatment and control groups for the variables `black`, `married`, `nondegree`, and `age`.
+```{r}
+#### LOAD DATA ####
+
+nsw <- read.csv(file="data/321/nsw.csv")
+head(nsw)
+
+#### CLEAN DATA ####
+freq.na(nsw) # are there any NAs?
+nsw$treat <- nsw$z
+nsw$treat_f <- factor(nsw$z,
+                      levels = c(0,1),
+                      labels=c("control","treatment"))
+nsw$black_f <- factor(nsw$black,
+                      levels = c(0,1),
+                      labels=c("non-black","black"))
+nsw$married_f <- factor(nsw$married,
+                      levels = c(0,1),
+                      labels=c("non-married","married"))
+nsw$nodegree_f <- factor(nsw$nodegree,
+                      levels = c(0,1),
+                      labels=c("degree","nodegree"))
+
+#### CHECKING BALANCE ####
+
+## proportion of blacks
+mean(nsw$black)
+t.test(black ~ treat_f, data = nsw)
+
+## proportion of college educated
+mean(nsw$nodegree)
+t.test(nodegree ~ treat_f, data = nsw)
+
+## proportion of married
+mean(nsw$married)
+t.test(married ~ treat_f, data = nsw)
+
+## balance on age
+t.test(age ~ treat_f, data = nsw)
+```
+
+Second, let's check the correlation matrix of all our quantitative variables.
+```{r}
+round(
+  cor(nsw[,-c(1,13:16)]), digits = 2
+)
+```
+
+Next, let's make a table of descriptive statistics for all variables except `id`.
+```{r, results='asis'}
+# Note: to display LaTeX tables from stargazer in your knitted PDF you must set your code chunk with the option  -- results='asis' --
+stargazer(nsw[,-1], 
+          header = FALSE,
+          type = "text") # change to type = "text" to display in the console
+```
+
+# 2. Exploratory data analysis
+Let's check the distribution of our data more visually.
+```{r}
+## visualize the age distribution by treatment group
+ggplot(data=nsw, aes(x=age, group=treat_f)) +
+  geom_density(aes(linetype=treat_f, color=treat_f)) +
+  geom_vline(xintercept = median(nsw$age[nsw$treat==1]),
+             linetype="dashed", color="lightblue") +
+  geom_vline(xintercept = median(nsw$age[nsw$treat==0]),
+             linetype="dashed", color="red")
+
+# scatter plot
+ggplot(data=nsw,
+       mapping = aes(x=edu,
+                     y=re78,
+                     color=treat_f)) +
+  geom_point() +
+  geom_smooth(method = "lm", fill="lightgrey", linewidth=0.5) +
+  coord_cartesian(ylim=c(0,20000)) +
+  facet_wrap(~treat_f) +
+  theme_classic()+
+  xlab("Years of Education")+
+  ylab("Income in 1978")
+```
+
+# 3. Estimation of policy effects
+We want to evaluate the treatment effect on the outcome. Before estimating this quantity, let's double check whether the outcome `re78` is correlated or associated with the unbalanced variables. Then, let's estimate the following conditional expectations:
+
+
+$$ E[\ re78 \ | \ z=treated ] \quad - \quad E[\ re78 \ | \ z=control ] $$
+Can we interpret this estimator as a causal effect? Why or why not?
+```{r}
+
+t.test(re78 ~ black_f, data = nsw)
+t.test(re78 ~ nodegree_f, data = nsw)
+t.test(re78 ~ married, data = nsw)
+
+t.test(re78 ~ treat_f, data = nsw)
+```
+
+Let's re-estimate the quantity using linear regression.
+```{r}
+
+lm1 <- lm(re78 ~ treat_f, data=nsw)
+lm2 <- lm(re78 ~ treat_f + edu + nodegree, data=nsw)
+
+summary(lm1)
+summary(lm2)
+
+stargazer(lm1,lm2,
+          header = FALSE,
+          type="text")  # change to type = "text" to display in the console
+```
+
+Given the temporal dimension of this experiment, let's estimate a differences-in-differences estimator using `re75` to represent participants' earnings before the intervention and `re78` to represent earnings after the intervention. Under what assumptions does this estimator identify a causal effect? Recall:
+
+$$\text{DiD} = [\bar{Y}(1)_{after} - \bar{Y}(0)_{after}] - [\bar{Y}(1)_{before} - \bar{Y}(0)_{before}]$$
+
+
+```{r}
+
+# differences in means before the intervention:
+before <- mean(nsw$re75[nsw$z==1]) - mean(nsw$re75[nsw$z==0])
+
+# differences in means after the intervention:
+after <- mean(nsw$re78[nsw$z==1]) - mean(nsw$re78[nsw$z==0])
+
+# differences in differences:
+(DiD <- after - before)
+
+
+```
+
+
+What is the **internal** and **external validity** of this experiment results?
+
+
+
+# 4. DID & Parallel trends
+
+A **Difference-in-Differences (DiD)** design is a statistical method used to estimate the causal effect of a treatment or intervention when we have data over time for both a treatment group (those exposed to the intervention) and a control group (those not exposed). Rather than just comparing outcomes after the intervention, DiD uses changes in outcomes over time—**differences in differences**—to control for underlying trends that might affect both groups.
+
+The key assumption behind DiD is called the **parallel trends assumption**. This means that, in the absence of the treatment, the average outcomes for the treatment and control groups would have followed the same trend over time. If this assumption holds, any divergence in outcomes after the intervention can be attributed to the treatment.
+
+The power of DiD comes from using within-unit changes over time to control for unobserved fixed differences between treated and control units. In other words, DiD differences out time-invariant confounders even if treatment was not randomly assigned. In this case, it measures the average effect of treatment on the treated, not the average treatment effect! These are different because the treatment effect size may differ between treatment and control groups. Random assignment strengthens internal validity but is not required.
+
+When treatment is not random, you must be extra careful to justify the parallel trends assumption. Time variant confounders should main concern!
+
+Although we can't directly test this assumption (since we never observe the counterfactual), we can **provide visual evidence** to support it by comparing trends in the outcome **before** the intervention.
+
+To do this, we'll create a line plot that shows average earnings for the treatment and control groups across the years 1974, 1975, and 1978. This will help us assess whether the two groups followed similar trends before the intervention occurred (in 1978).
+
+Let's start by extracting the variables `re74`, `re75`, and `re78`, and convert the dataset from wide to long format using `pivot_longer()`. This will give us one column for the year, one for earnings, and one indicating whether the individual was in the treatment or control group. Then, we'll use the `aggregate()` function to compute average earnings by year and group. Finally, we plot the trends using `ggplot2`.
+
+```{r}
+# 1. Add individual ID
+nsw$id <- 1:nrow(nsw)
+
+# 2. Select and reshape data to long format
+df_long <- nsw[, c("id", "treat", "re74", "re75", "re78")]
+
+df_long <- pivot_longer(df_long,
+                        cols = c("re74", "re75", "re78"),
+                        names_to = "year",
+                        values_to = "earnings")
+
+# 3. Recode year as numeric
+df_long$year <- as.numeric(gsub("re", "19", df_long$year))
+
+# 4. Create post-treatment indicator (1978 is post)
+df_long$post <- ifelse(df_long$year == 1978, 1, 0)
+
+#5. Pre-trends
+vis <- aggregate(earnings ~ year + treat_f, data=df_long, FUN=mean)
+ggplot(data=vis,
+       mapping=aes(x=year,
+                   y=earnings,
+                   group=treat_f,
+                   color=treat_f)) +
+  geom_line() +
+  geom_point() +
+  theme_bw() +
+  labs(x="Year") +
+  theme(legend.position = c(0.4, 0.8),
+        legend.title = element_blank()) 
+
+# 6. Run DiD regression with clustered SEs by individual
+did_model <- lm_robust(earnings ~ treat * post,
+                       clusters = id,
+                       data = df_long)
+
+# 7. View results
+summary(did_model)
+```
+
+
+
+
+
+
+
+
+
+
+
