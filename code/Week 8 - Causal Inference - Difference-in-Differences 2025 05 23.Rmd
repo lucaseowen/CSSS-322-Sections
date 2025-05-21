@@ -183,21 +183,21 @@ after <- mean(nsw$re78[nsw$z==1]) - mean(nsw$re78[nsw$z==0])
 ```
 
 
-What is the **internal** and **external validity** of this experiment results?
+What is the internal and external validity of this experiment results?
 
 
 
 # 4. DID & Parallel trends
 
-A **Difference-in-Differences (DiD)** design is a statistical method used to estimate the causal effect of a treatment or intervention when we have data over time for both a treatment group (those exposed to the intervention) and a control group (those not exposed). Rather than just comparing outcomes after the intervention, DiD uses changes in outcomes over time—**differences in differences**—to control for underlying trends that might affect both groups.
+A Difference-in-Differences (DiD) design is a statistical method used to estimate the causal effect of a treatment or intervention when we have data over time for both a treatment group (those exposed to the intervention) and a control group (those not exposed). Rather than just comparing outcomes after the intervention, DiD uses changes in outcomes over time—differences in differences—to control for underlying trends that might affect both groups.
 
-The key assumption behind DiD is called the **parallel trends assumption**. This means that, in the absence of the treatment, the average outcomes for the treatment and control groups would have followed the same trend over time. If this assumption holds, any divergence in outcomes after the intervention can be attributed to the treatment.
+The key assumption behind DiD is called the parallel trends assumption. This means that, in the absence of the treatment, the average outcomes for the treatment and control groups would have followed the same trend over time. If this assumption holds, any divergence in outcomes after the intervention can be attributed to the treatment.
 
 The power of DiD comes from using within-unit changes over time to control for unobserved fixed differences between treated and control units. In other words, DiD differences out time-invariant confounders even if treatment was not randomly assigned. In this case, it measures the average effect of treatment on the treated, not the average treatment effect! These are different because the treatment effect size may differ between treatment and control groups. Random assignment strengthens internal validity but is not required.
 
 When treatment is not random, you must be extra careful to justify the parallel trends assumption. Time variant confounders should main concern!
 
-Although we can't directly test this assumption (since we never observe the counterfactual), we can **provide visual evidence** to support it by comparing trends in the outcome **before** the intervention.
+Although we can't directly test this assumption (since we never observe the counterfactual), we can provide visual evidence to support it by comparing trends in the outcome before the intervention.
 
 To do this, we'll create a line plot that shows average earnings for the treatment and control groups across the years 1974, 1975, and 1978. This will help us assess whether the two groups followed similar trends before the intervention occurred (in 1978).
 
