@@ -28,7 +28,7 @@ my_theme <- theme_minimal() +
 theme_set(my_theme)
 ```
 
-Different methods for identifying causality with observational data - difference-in-differences, regression discontinuity, and instrumental variables. Today we'll focus on diff-in-diff.
+There are different methods for identifying causality with observational data - difference-in-differences, regression discontinuity, and instrumental variables. Today we'll focus on diff-in-diff.
 
 # The data
 
@@ -170,7 +170,7 @@ stargazer(lm1,lm2,
           type="text")  # change to type = "text" to display in the console
 ```
 
-Given the temporal dimension of this experiment, let's estimate a differences-in-differences estimator using `re75` to represent participants' earnings before the intervention and `re78` to represent earnings after the intervention. Under what assumptions does this estimator identify a causal effect? Recall:
+Given the temporal dimension of this experiment, we can instead do a diff-in-diff! let's estimate a differences-in-differences estimator using `re75` to represent participants' earnings before the intervention and `re78` to represent earnings after the intervention. Under what assumptions does this estimator identify a causal effect? Recall:
 
 $$\text{DiD} = [\bar{Y}(1)_{after} - \bar{Y}(0)_{after}] - [\bar{Y}(1)_{before} - \bar{Y}(0)_{before}]$$
 
@@ -237,7 +237,7 @@ ggplot(data=vis,
   labs(x="Year") +
   theme(legend.position = c(0.4, 0.8),
         legend.title = element_blank()) +
-  geom_vline(xintercept=1975, linetype=2)
+  geom_vline(xintercept=1976, linetype=2)
 
 # 6. Run DiD regression with clustered SEs by individual
 did_model <- lm_robust(earnings ~ treat * post,
