@@ -28,32 +28,34 @@ my_theme <- theme_minimal() +
 theme_set(my_theme)
 ```
 
+Different methods for identifying causality with observational data - difference-in-differences, regression discontinuity, and instrumental variables. Today we'll focus on diff-in-diff.
+
 # The data
 
 This data was collected to evaluate the National Supported Work (NSW) Demonstration, a randomized employment program studied by LaLonde (1986). The NSW program was designed to help disadvantaged individuals—such as welfare recipients, high school dropouts, ex-offenders, and ex-drug addicts transition into the labor market. Participants were randomly assigned to either a treatment group, which received program services, or a control group, which did not. This random assignment helped ensure that differences in outcomes between groups could be attributed to the program itself rather than pre-existing characteristics.
 
 Those in the treatment group were guaranteed 9 to 18 months of subsidized employment, worked in small crews, and received counseling and performance-based wage increases. Job placements varied by site and included roles in construction, service, and clerical work. Implemented in ten U.S. cities during the mid-1970s, the NSW program aimed to provide structured work experience and a pathway into regular employment.
 
-The paper in question:
-*Lalonde, R. (1986) Evaluating the Econometric Evaluations of Training Programs, American Economic Review, 76, 604-620.*
+The paper in question: *Lalonde, R. (1986) Evaluating the Econometric Evaluations of Training Programs, American Economic Review, 76, 604-620.*
 
-| Variable  | Description                                      |
-|-----------|--------------------------------------------------|
-| id        | Matched pair id, 1, 1, 2, 2, ..., 185, 185.      |
-| z         | z=1 for treated, z=0 for control                 |
-| age       | Age in years                                     |
-| edu       | Education in years                               |
-| black     | 1=black, 0=other                                 |
-| hisp      | 1=Hispanic, 0=other                              |
-| married   | 1=married, 0=other                               |
-| nodegree  | 1=no High School degree, 0=other                 |
-| re74      | Earnings in 1974, a covariate                    |
-| re75      | Earnings in 1975, a covariate                    |
-| re78      | Earnings in 1978, an outcome                     |
+| Variable | Description                                 |
+|----------|---------------------------------------------|
+| id       | Matched pair id, 1, 1, 2, 2, ..., 185, 185. |
+| z        | z=1 for treated, z=0 for control            |
+| age      | Age in years                                |
+| edu      | Education in years                          |
+| black    | 1=black, 0=other                            |
+| hisp     | 1=Hispanic, 0=other                         |
+| married  | 1=married, 0=other                          |
+| nodegree | 1=no High School degree, 0=other            |
+| re74     | Earnings in 1974, a covariate               |
+| re75     | Earnings in 1975, a covariate               |
+| re78     | Earnings in 1978, an outcome                |
 
 # 1. Descriptive statistics
 
 First, let's load the data and make sure it is clean. Let's also assess the balance between treatment and control groups for the variables `black`, `married`, `nondegree`, and `age`.
+
 ```{r}
 #### LOAD DATA ####
 
@@ -95,6 +97,7 @@ t.test(age ~ treat_f, data = nsw)
 ```
 
 Second, let's check the correlation matrix of all our quantitative variables.
+
 ```{r}
 round(
   cor(nsw[,-c(1,13:16)]), digits = 2
@@ -102,6 +105,7 @@ round(
 ```
 
 Next, let's make a table of descriptive statistics for all variables except `id`.
+
 ```{r, results='asis'}
 # Note: to display LaTeX tables from stargazer in your knitted PDF you must set your code chunk with the option  -- results='asis' --
 stargazer(nsw[,-1], 
@@ -110,7 +114,9 @@ stargazer(nsw[,-1],
 ```
 
 # 2. Exploratory data analysis
+
 Let's check the distribution of our data more visually.
+
 ```{r}
 ## visualize the age distribution by treatment group
 ggplot(data=nsw, aes(x=age, group=treat_f)) +
@@ -135,11 +141,11 @@ ggplot(data=nsw,
 ```
 
 # 3. Estimation of policy effects
+
 We want to evaluate the treatment effect on the outcome. Before estimating this quantity, let's double check whether the outcome `re78` is correlated or associated with the unbalanced variables. Then, let's estimate the following conditional expectations:
 
+$$ E[\ re78 \ | \ z=treated ] \quad - \quad E[\ re78 \ | \ z=control ] $$ Can we interpret this estimator as a causal effect? Why or why not?
 
-$$ E[\ re78 \ | \ z=treated ] \quad - \quad E[\ re78 \ | \ z=control ] $$
-Can we interpret this estimator as a causal effect? Why or why not?
 ```{r}
 
 t.test(re78 ~ black_f, data = nsw)
@@ -150,12 +156,13 @@ t.test(re78 ~ treat_f, data = nsw)
 ```
 
 Let's re-estimate the quantity using linear regression.
+
 ```{r}
 
 lm1 <- lm(re78 ~ treat_f, data=nsw)
-lm2 <- lm(re78 ~ treat_f + edu + nodegree, data=nsw)
-
 summary(lm1)
+
+lm2 <- lm(re78 ~ treat_f + edu + nodegree + black_f, data=nsw)
 summary(lm2)
 
 stargazer(lm1,lm2,
@@ -166,7 +173,6 @@ stargazer(lm1,lm2,
 Given the temporal dimension of this experiment, let's estimate a differences-in-differences estimator using `re75` to represent participants' earnings before the intervention and `re78` to represent earnings after the intervention. Under what assumptions does this estimator identify a causal effect? Recall:
 
 $$\text{DiD} = [\bar{Y}(1)_{after} - \bar{Y}(0)_{after}] - [\bar{Y}(1)_{before} - \bar{Y}(0)_{before}]$$
-
 
 ```{r}
 
@@ -182,10 +188,7 @@ after <- mean(nsw$re78[nsw$z==1]) - mean(nsw$re78[nsw$z==0])
 
 ```
 
-
 What is the internal and external validity of this experiment results?
-
-
 
 # 4. DID & Parallel trends
 
@@ -208,7 +211,7 @@ Let's start by extracting the variables `re74`, `re75`, and `re78`, and convert 
 nsw$id <- 1:nrow(nsw)
 
 # 2. Select and reshape data to long format
-df_long <- nsw[, c("id", "treat", "re74", "re75", "re78")]
+df_long <- nsw[, c("id", "treat_f", "re74", "re75", "re78")]
 
 df_long <- pivot_longer(df_long,
                         cols = c("re74", "re75", "re78"),
@@ -233,7 +236,8 @@ ggplot(data=vis,
   theme_bw() +
   labs(x="Year") +
   theme(legend.position = c(0.4, 0.8),
-        legend.title = element_blank()) 
+        legend.title = element_blank()) +
+  geom_vline(xintercept=1975, linetype=2)
 
 # 6. Run DiD regression with clustered SEs by individual
 did_model <- lm_robust(earnings ~ treat * post,
@@ -242,15 +246,10 @@ did_model <- lm_robust(earnings ~ treat * post,
 
 # 7. View results
 summary(did_model)
+
+
+# effect size!
+reference <- did_model$coefficients[1]+did_model$coefficients[2]+did_model$coefficients[3]
+did_model$coefficients[4] / reference
+#45% higher relative to the counterfactual!
 ```
-
-
-
-
-
-
-
-
-
-
-
