@@ -2,9 +2,9 @@
 title: "Difference-in-Differences"
 author: "Lucas Owen"
 output:
+  pdf_document: default
   html_document:
     df_print: paged
-  pdf_document: default
 editor_options:
   chunk_output_type: console
 ---
@@ -231,7 +231,7 @@ ggplot(data=vis,
                    y=earnings,
                    group=treat_f,
                    color=treat_f)) +
-  geom_line() +
+  geom_line(aes(linetype=treat_f)) +
   geom_point() +
   theme_bw() +
   labs(x="Year") +
@@ -240,7 +240,7 @@ ggplot(data=vis,
   geom_vline(xintercept=1976, linetype=2)
 
 # 6. Run DiD regression with clustered SEs by individual
-did_model <- lm_robust(earnings ~ treat * post,
+did_model <- lm_robust(earnings ~ treat_f * post,
                        clusters = id,
                        data = df_long)
 
@@ -249,7 +249,7 @@ summary(did_model)
 
 
 # effect size!
-reference <- did_model$coefficients[1]+did_model$coefficients[2]+did_model$coefficients[3]
-did_model$coefficients[4] / reference
+counterfactual <- did_model$coefficients[1]+did_model$coefficients[2]+did_model$coefficients[3]
+did_model$coefficients[4] / counterfactual
 #45% higher relative to the counterfactual!
 ```

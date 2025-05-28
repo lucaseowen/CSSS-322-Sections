@@ -1,0 +1,126 @@
+---
+title: "Intro to Machine Learning"
+author: "Lucas Owen"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = FALSE, message = FALSE)
+
+#load our packages
+library(caret)
+library(tidyverse)
+
+### SET PLOT THEME ###
+
+my_theme <- theme_minimal() +
+  theme(
+    panel.grid.minor.x = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    plot.caption.position = "plot",
+    plot.caption = element_text(hjust = 0)
+  )
+theme_set(my_theme)
+
+### LOAD DATA ###
+load("data/322/movie_prediction 2025 05 28.RData")
+
+#set seed so we get the exact same results
+set.seed(20250530)
+```
+
+In this lab we'll talk about how to do machine learning in R. While creating the back end of ML models such that they perform well is difficult and requires a great deal of knowledge, running ML models in R is very simple. We're still fitting models as we did before, but now we're proliferating many models and then selecting the best based on predictive performance.
+
+Picking a model based on its performance on the data we give it, however, risks giving us a very biased model. This is called over-fitting, and it means that we risk thinking we have a good model only to find it actually performs poorly when we give it data it's never seen before. In other words, over-fitting gives us bad external validity!
+
+Instead, we evaluate models based on their performance on data outside the sample. We give it some data to estimate a model, and then we give it **different** data to see how well it performs.
+
+We can use various criteria for measuring this performance. Which we decide to use is based on the task at hand. Some examples include precision (correct predictions) and recall (the rate of identification of true positives). Additional metrics exist - general predictive accuracy, combinations of these, etc.
+
+For this lab we will be doing machine learning on movies. We have a dataset of movies seen by an individual and how they rated each movie. We also have a dataset of movies that individual has not seen. Our goal is to recommend movies to the person based on what they like. In this case, what we care most about is that these recommendations are accurate. If we recommend a movie to the person, we want there to be a high likelihood they will actually like it. In this case we'll evaluate our model on precision - we want to maximize correct predictions.
+
+There many models available to us when doing any type of machine learning. Certain models are better for certain tasks than others. You can read more about some of the most common types of models here:
+
+		https://builtin.com/data-science/tour-top-10-algorithms-machine-learning-newbies
+
+Some knowledge of which models are best for certain tasks helps save time, but the definitive way to tell is still to test it.
+
+When doing any kind of machine learning, the most important component is the amount and quality of our data. The more observations the better, the more variables the better, and the cleaner the better! Data quality really matters a lot with machine learning models, as with everything else. Garbage in, garbage out.
+
+Here's how we set up a machine learning model in R...
+
+We will use a boosted logit model with leave-one-out cross-validation (LOOCV). A boosted logit model is a type of ensemble method that combines multiple logistic regression models to improve predictive performance. Instead of fitting just one model, boosting fits a series of models sequentially, where each new model focuses on correcting the errors made by the previous ones. This can lead to a powerful final model that captures complex patterns in the data.
+
+LOOCV is a method for evaluating how well our model generalizes to new data: we fit the model on all but one observation, test it on the one we left out, and repeat this for every observation in the dataset. This gives us a nearly unbiased estimate of how our model would perform in the real world, helping to avoid over-fitting.		
+		
+```{r}
+#### BOOSTED LOGIT - PRECISION ####
+
+# Specify the trainControl for precision
+myTrainControl <- trainControl(
+  method = "LOOCV", 
+  classProbs = TRUE, 
+  summaryFunction = prSummary,  # Use Precision-Recall Summary
+  savePredictions = TRUE
+)
+
+#subset df to just variables we want to include
+df_cv <- df[,c("My.Rating_bin9", #outcome variable
+                     "imdb.rating", "imdb.rating_square", "Letterboxd.Rating", "Letterboxd.Rating_square",
+                     "Letterboxd.Votes", "Letterboxd.Votes_ln", "imdb.votes", "imdb.votes_ln",
+                     "runtime", "runtime_ln", "SUM.Total", "SUM.Lists", "SUM.Awards",
+                     "Top.50.Directors.bin", "TSPDT_top1000_bin", "TSPDT_top1000_rank", "TSPDT_top1000_rank_square",
+                     "Art.film.wiki", "S.S.top.250", "Oscar.Best.Picture.Winners", "Golden.Globe.Best.Picture.Drama",
+                     "Director.s.Top.100..BFI...S.S.", "On.Scratch.Movie.Poster", "roger.ebert.great.movies", "Palme.d.Or.Winners", "Sundance",
+                     "meditative", "cerebral", "intelligent", "thought-provoking", "enigmatic", "brains", "meditative_score", "intelligent_score", "philosophical", "philosophy",
+                     "likes", "ratings", "pct_greats", "views",
+                     "Region", "Foreign", "Age", "Decade", "Year","pre_1990", 
+                     "Criterion.Channel")]
+
+df_cv$My.Rating_bin9_cat <- NA_character_
+df_cv$My.Rating_bin9_cat[df_cv$My.Rating_bin9==1] <- "One"
+df_cv$My.Rating_bin9_cat[df_cv$My.Rating_bin9==0] <- "Zero"
+df_cv$My.Rating_bin9_cat <- as.factor(df_cv$My.Rating_bin9_cat)
+#remove My.Rating_bin9 so it doesn't use that to predict
+df_cv <- df_cv[,!colnames(df_cv) %in% "My.Rating_bin9"]
+
+#now we run the model
+system.time(logit_boost <- train(My.Rating_bin9_cat ~ ., data = df_cv, method = "LogitBoost",
+                                 trControl = myTrainControl, na.action = na.omit,
+                                 metric = "Precision")
+)
+
+# Summarize the results
+print(logit_boost)
+```
+
+Once we have estimated the model and examined its out of sample performance, we can predict on movies we haven't seen to get a list of recommended movies.
+
+```{r}
+#### PREDICTING WITH BOOSTED LOGIT ####
+
+#predict on unseen movies
+# Get matching column names
+matching_cols <- intersect(names(df_unseen), names(df_cv))
+# Subset df_unseen to only rows without NAs in matching columns
+df_unseen <- df_unseen[complete.cases(df_unseen[, matching_cols]), ]
+#predict
+df_unseen$pred <- predict(logit_boost, newdata = df_unseen)
+
+#saving recommendations to csv
+df_unseen_print <- df_unseen[,c("imdb.uid", "Title", "pred", "Letterboxd.Rating")]
+df_unseen_print <- df_unseen_print[!duplicated(df_unseen_print$imdb.uid),]
+df_unseen_print <- df_unseen_print[df_unseen_print$pred=="One",]
+
+#export to csv
+write.csv(df_unseen_print, "data/322/predictions 2025 05 30.csv", na="", row.names=FALSE)
+
+
+
+```
+
