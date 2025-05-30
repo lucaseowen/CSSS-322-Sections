@@ -54,16 +54,16 @@ When doing any kind of machine learning, the most important component is the amo
 
 Here's how we set up a machine learning model in R...
 
-We will use a boosted logit model with leave-one-out cross-validation (LOOCV). A boosted logit model is a type of ensemble method that combines multiple logistic regression models to improve predictive performance. Instead of fitting just one model, boosting fits a series of models sequentially, where each new model focuses on correcting the errors made by the previous ones. This can lead to a powerful final model that captures complex patterns in the data.
+We will use a glmnet model with leave-one-out cross-validation (LOOCV). GLMNET fits generalized linear model via penalized maximum likelihood.
 
 LOOCV is a method for evaluating how well our model generalizes to new data: we fit the model on all but one observation, test it on the one we left out, and repeat this for every observation in the dataset. This gives us a nearly unbiased estimate of how our model would perform in the real world, helping to avoid over-fitting.		
 		
 ```{r}
-#### BOOSTED LOGIT - PRECISION ####
+#### GLM NET - PRECISION ####
 
 # Specify the trainControl for precision
 myTrainControl <- trainControl(
-  method = "LOOCV", 
+  method = "LOOCV", #leave one out cross validation!
   classProbs = TRUE, 
   summaryFunction = prSummary,  # Use Precision-Recall Summary
   savePredictions = TRUE
@@ -89,20 +89,29 @@ df_cv$My.Rating_bin9_cat <- as.factor(df_cv$My.Rating_bin9_cat)
 #remove My.Rating_bin9 so it doesn't use that to predict
 df_cv <- df_cv[,!colnames(df_cv) %in% "My.Rating_bin9"]
 
+df_cv$My.Rating_bin9_cat <- factor(df_cv$My.Rating_bin9_cat, levels = c("Zero", "One"))
+
 #now we run the model
-system.time(logit_boost <- train(My.Rating_bin9_cat ~ ., data = df_cv, method = "LogitBoost",
+system.time(glm_net1 <- train(My.Rating_bin9_cat ~ ., data = df_cv, method = "glmnet",
                                  trControl = myTrainControl, na.action = na.omit,
                                  metric = "Precision")
 )
 
 # Summarize the results
-print(logit_boost)
+print(glm_net1)
+
+var_imp <- varImp(glm_net1)
+print(var_imp)
+plot(var_imp)
+
 ```
+
+Now, trial and error until we're satisfied...
 
 Once we have estimated the model and examined its out of sample performance, we can predict on movies we haven't seen to get a list of recommended movies.
 
 ```{r}
-#### PREDICTING WITH BOOSTED LOGIT ####
+#### PREDICTING WITH GLMNET ####
 
 #predict on unseen movies
 # Get matching column names
@@ -110,7 +119,7 @@ matching_cols <- intersect(names(df_unseen), names(df_cv))
 # Subset df_unseen to only rows without NAs in matching columns
 df_unseen <- df_unseen[complete.cases(df_unseen[, matching_cols]), ]
 #predict
-df_unseen$pred <- predict(logit_boost, newdata = df_unseen)
+df_unseen$pred <- predict(glm_net1, newdata = df_unseen)
 
 #saving recommendations to csv
 df_unseen_print <- df_unseen[,c("imdb.uid", "Title", "pred", "Letterboxd.Rating")]
