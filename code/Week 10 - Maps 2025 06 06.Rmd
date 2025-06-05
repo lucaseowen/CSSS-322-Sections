@@ -1,0 +1,151 @@
+---
+title: "Making Maps in R"
+author: "Lucas Owen"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = T, warning = FALSE, message = FALSE)
+
+#load our packages
+library(ggplot2)
+library(dplyr)
+library(sf)
+library(stringr)
+
+#load main data
+df <- read.csv("data/322/mexico/Analysis all muns.csv", stringsAsFactors = F, na.strings = c("", "NA"))
+df$INEGI <- sprintf("%05d", df$INEGI)
+df$INEGI <- as.character(df$INEGI)
+df$time <- as.Date(df$time)
+```
+
+
+To make maps in R we will be using the sf package. When working with maps, you will need shape file(s) that include information on the polygons for the map. You will typically find, for each layer of data, a group of files that all contain pieces of the map data. When loading, however, we just reference the shape file. The data for this map was downloaded from here: https://en.www.inegi.org.mx/app/mapa/espacioydatos/.
+
+```{r}
+#municipalities shape file
+mun <- st_read("data/322/mexico/Map files/00mun.shp")
+st_crs(mun)
+#states shape file
+state <- st_read("data/322/mexico/Map files/Entidades_2010_5.shp")
+```
+
+
+Then we will merge our main data with the spatial data and check the coordinate reference system (CRS) for the map. We typically choose a CRS so that the projection is visually accurate. Other times, we may pick a CRS based on how accurately it represents distances or areas to ensure any calculations we might do are as accurate as possible. To read more about projections and CRSs, see here: https://docs.qgis.org/3.40/en/docs/gentle_gis_introduction/coordinate_reference_systems.html.
+
+```{r}
+#summarize data of crime by municipality
+map_data <- df %>%
+  group_by(INEGI) %>%
+  summarize(gun_homicides = sum(gun_homicides),
+            malicious_homicides = sum(malicious_homicides),
+            homicides = sum(homicides),
+            kidnappings = sum(kidnappings),
+            extortion = sum(extortion),
+            home_robbery = sum(home_robbery),
+            business_robbery = sum(business_robbery),
+            state = unique(State),
+            municipality = unique(Municipality)
+            )
+
+#Merge mun and map_data
+mun <- left_join(mun, map_data, by = c("CVEGEO"="INEGI"))
+
+#check the CRS and projection info
+st_crs(mun)
+st_crs(state)
+
+# mun <- st_transform(mun, crs=6372)
+# st_crs(mun)
+# state <- st_transform(state, crs=6372)
+# st_crs(state)
+```
+
+
+To plot the spatial data, we can use ggplot. Here's how we plot the states:
+
+```{r}
+#let's first set the dimensions for our output file
+h <- 6
+w <- 1.618*h
+
+#then we plot as usual, but with some new functions from the sf package
+p <- ggplot() +
+  geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
+  theme_void() +
+  theme(
+    legend.position = c(0.2, 0.2),
+    legend.title = element_blank(),
+    legend.key = element_blank()
+  )
+
+ggsave("Mexico_states.pdf", plot = p, width = w, height = h)
+```
+
+Note that we save the plot directly to a file (by assigning to p and then telling ggsave to save p) because it is generally more time efficient - rendering the plot in the R console can take a while and misrepresent what the final file will look like, so it is nice to skip this step.
+
+Too add additional information, we simply add layers and reference variables as usual.
+
+```{r}
+#Plot the data
+p <- ggplot() +
+  geom_sf(data = mun, aes(fill = homicides), color = "gray14", linewidth = .05) +
+  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10) +
+  geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
+  # scale_fill_viridis_b(direction = -1, n.breaks = 10)+ #color blind option
+  theme_void() +
+  theme(
+    legend.position = c(0.2, 0.2),
+    legend.title = element_blank(),
+    legend.key = element_blank()
+  )+
+  ggtitle("Homicides in Mexico between 2011 and 2019")
+
+ggsave("Mexico_homicides_map.pdf", plot = p, width = w, height = h)
+```
+
+
+If we want to add labels for the top ten municipalities by homicides, we can use geom_sf_label().
+
+```{r}
+#get top 10 municipalities by name
+top_muns <- mun %>%
+  filter(!is.na(homicides)) %>%
+  arrange(desc(homicides)) %>%
+  slice_head(n = 10)
+
+top_muns$municipality <- str_to_sentence(top_muns$municipality)
+
+p <- ggplot() +
+  geom_sf(data = mun, aes(fill = homicides), color = "gray14", linewidth = .05) +
+  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10) +
+  geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
+  
+  # Label top 10 municipalities with white box and slight vertical offset
+  geom_sf_label(
+    data = top_muns,
+    aes(label = municipality),
+    size = 2.5,
+    color = "black",
+    fill = "white",
+    label.size = 0.2,  # border thickness
+    nudge_y = 50000    # adjust as needed depending on your CRS
+  ) +
+  
+  theme_void() +
+  theme(
+    legend.position = c(0.2, 0.2),
+    legend.title = element_blank(),
+    legend.key = element_blank()
+  )+
+  ggtitle("Homicides in Mexico between 2011 and 2019")
+
+ggsave("Mexico_homicides_map_labeled.pdf", plot = p, width = w, height = h)
+```
+
