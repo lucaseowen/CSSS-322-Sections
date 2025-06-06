@@ -188,7 +188,7 @@ after <- mean(nsw$re78[nsw$z==1]) - mean(nsw$re78[nsw$z==0])
 
 ```
 
-What is the internal and external validity of this experiment results?
+What is the internal and external validity of this experiment's results?
 
 # 4. DID & Parallel trends
 
@@ -198,7 +198,7 @@ The key assumption behind DiD is called the parallel trends assumption. This mea
 
 The power of DiD comes from using within-unit changes over time to control for unobserved fixed differences between treated and control units. In other words, DiD differences out time-invariant confounders even if treatment was not randomly assigned. In this case, it measures the average effect of treatment on the treated, not the average treatment effect! These are different because the treatment effect size may differ between treatment and control groups. Random assignment strengthens internal validity but is not required.
 
-When treatment is not random, you must be extra careful to justify the parallel trends assumption. Time variant confounders should main concern!
+When treatment is not random, you must be extra careful to justify the parallel trends assumption. Time variant confounders should be your main concern!
 
 Although we can't directly test this assumption (since we never observe the counterfactual), we can provide visual evidence to support it by comparing trends in the outcome before the intervention.
 

@@ -54,7 +54,7 @@ When doing any kind of machine learning, the most important component is the amo
 
 Here's how we set up a machine learning model in R...
 
-We will use a glmnet model with leave-one-out cross-validation (LOOCV). GLMNET fits generalized linear model via penalized maximum likelihood.
+We will use a glmnet model with leave-one-out cross-validation (LOOCV). GLMNET fits a generalized linear model via penalized maximum likelihood.
 
 LOOCV is a method for evaluating how well our model generalizes to new data: we fit the model on all but one observation, test it on the one we left out, and repeat this for every observation in the dataset. This gives us a nearly unbiased estimate of how our model would perform in the real world, helping to avoid over-fitting.		
 		

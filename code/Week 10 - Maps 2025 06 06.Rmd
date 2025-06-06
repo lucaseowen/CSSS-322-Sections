@@ -50,6 +50,7 @@ map_data <- df %>%
             extortion = sum(extortion),
             home_robbery = sum(home_robbery),
             business_robbery = sum(business_robbery),
+            Sown_hectare = sum(Sown_hectare),
             state = unique(State),
             municipality = unique(Municipality)
             )
@@ -96,7 +97,7 @@ Too add additional information, we simply add layers and reference variables as 
 #Plot the data
 p <- ggplot() +
   geom_sf(data = mun, aes(fill = homicides), color = "gray14", linewidth = .05) +
-  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10) +
+  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10, na.value = "lightgray") +
   geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
   # scale_fill_viridis_b(direction = -1, n.breaks = 10)+ #color blind option
   theme_void() +
@@ -124,7 +125,7 @@ top_muns$municipality <- str_to_sentence(top_muns$municipality)
 
 p <- ggplot() +
   geom_sf(data = mun, aes(fill = homicides), color = "gray14", linewidth = .05) +
-  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10) +
+  scale_fill_binned(type = "gradient", low = "lightblue", high = "darkblue", n.breaks = 10, na.value = "lightgray") +
   geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
   
   # Label top 10 municipalities with white box and slight vertical offset
@@ -149,3 +150,21 @@ p <- ggplot() +
 ggsave("Mexico_homicides_map_labeled.pdf", plot = p, width = w, height = h)
 ```
 
+Map of avocado production
+```{r}
+#Plot the data
+p <- ggplot() +
+  geom_sf(data = mun, aes(fill = Sown_hectare), color = "gray14", linewidth = .05) +
+  scale_fill_binned(type = "gradient", low = "lightgreen", high = "darkgreen", n.breaks = 10, na.value = "lightgray") +
+  geom_sf(data = state, fill=NA, color="black", linewidth=.4) +
+  # scale_fill_viridis_b(direction = -1, n.breaks = 10)+ #color blind option
+  theme_void() +
+  theme(
+    legend.position = c(0.2, 0.2),
+    legend.title = element_blank(),
+    legend.key = element_blank()
+  )+
+  ggtitle("Avocado production in Mexico between 2011 and 2019")
+
+ggsave("Mexico_avocados_map.pdf", plot = p, width = w, height = h)
+```
